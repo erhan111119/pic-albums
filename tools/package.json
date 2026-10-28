@@ -1,0 +1,12 @@
+﻿{
+  "name": "pic-albums-tools",
+  "private": true,
+  "type": "module",
+  "description": "GitHub Actions 里跑的相册构建器：inbox 图片 -> a/<id> 静态相册",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "sharp": "^0.33.5"
+  }
+}

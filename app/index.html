@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>图集发布</title>
+<meta name="theme-color" content="#111318">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="图集发布">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 首次设置 -->
+<section id="s-setup" class="screen">
+  <h1>先做一次设置</h1>
+  <p class="hint">这个页面需要一枚 GitHub token 才能替你上传。token 只存在这台手机的浏览器里，不会发到任何别的服务器。</p>
+
+  <label class="field">
+    <span>GitHub token</span>
+    <input id="in-token" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_... 或 ghp_...">
+  </label>
+
+  <label class="field">
+    <span>仓库名（相册存这里）</span>
+    <input id="in-repo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="pic-albums">
+  </label>
+
+  <details class="howto">
+    <summary>怎么生成 token（点开看）</summary>
+    <ol>
+      <li>打开 GitHub → 头像 → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token</li>
+      <li>Repository access 选 <b>Only select repositories</b> → 勾 <b>pic-albums</b></li>
+      <li>Permissions → Repository permissions → <b>Contents: Read and write</b>（其他都不用给）</li>
+      <li>Expiration 选 90 天，Generate，复制那串 <code>github_pat_...</code></li>
+    </ol>
+    <p class="hint">用细粒度 token 只给这一个仓库的写权限，就算手机丢了别人也只能动这个相册仓库，随时可以在同一页面 Revoke。</p>
+  </details>
+
+  <button id="btn-save" class="primary">保存并验证</button>
+  <p id="setup-msg" class="msg"></p>
+</section>
+
+<!-- 选图 -->
+<section id="s-main" class="screen hidden">
+  <div id="who" class="who"></div>
+  <h1>选相册里的图</h1>
+  <p class="hint">原图直传，云端自动生成缩略图和预览页。20 张以上建议连 WiFi。</p>
+
+  <label class="field">
+    <span>标题（可留空）</span>
+    <input id="in-title" type="text" maximumlength="80" placeholder="例如：10 月壁纸">
+  </label>
+
+  <label id="pick" class="pick">
+    <input id="in-files" type="file" accept="image/*" multiple hidden>
+    <strong>从相册选图</strong>
+    <em>可以一次选多张</em>
+  </label>
+
+  <ul id="filelist" class="filelist"></ul>
+  <div id="sum" class="sum"></div>
+
+  <button id="btn-go" class="primary" disabled>上传并生成链接</button>
+  <button id="btn-reset" class="ghost">换 token / 仓库</button>
+</section>
+
+<!-- 进度 -->
+<section id="s-progress" class="screen hidden">
+  <h1 id="pg-title">正在上传…</h1>
+  <div class="bar"><i id="pg-bar"></i></div>
+  <p id="pg-text" class="msg"></p>
+  <p id="pg-sub" class="hint"></p>
+  <button id="btn-cancel" class="ghost">取消（已传的部分不会生成相册）</button>
+</section>
+
+<!-- 完成 -->
+<section id="s-done" class="screen hidden">
+  <h1 id="done-title">好了</h1>
+  <div class="urlbox">
+    <a id="done-url" href="#" target="_blank" rel="noopener"></a>
+  </div>
+  <div class="row">
+    <button id="btn-copy" class="primary">复制链接</button>
+    <button id="btn-share" class="ghost">分享</button>
+  </div>
+  <p id="done-sub" class="hint"></p>
+  <button id="btn-again" class="ghost">再发一批</button>
+</section>
+
+<!-- 出错 -->
+<section id="s-error" class="screen hidden">
+  <h1>出问题了</h1>
+  <p id="err-text" class="msg err"></p>
+  <button id="btn-back" class="ghost">返回</button>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
