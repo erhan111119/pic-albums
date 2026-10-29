@@ -405,8 +405,37 @@ function bind() {
 }
 
 /* ---------- 启动 ---------- */
+async function consumeHashToken() {
+  const m = /[#&]t=([^&]+)/.exec(location.hash || '');
+  if (!m) return false;
+  const val = decodeURIComponent(m[1]);
+  // 立刻从地址栏抹掉，别留在历史记录里
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!val) return false;
+  $('in-token').value = val;
+  $('setup-msg').textContent = '扫到 token，正在验证…';
+  try {
+    const me = await verifyAndSave(val, $('in-repo').value || 'pic-albums');
+    $('who').textContent = `账号 ${me.login} · 仓库 ${state.repo}`;
+    $('setup-msg').textContent = '';
+    show('s-main');
+    return true;
+  } catch (e) {
+    $('setup-msg').textContent = e.message || String(e);
+    $('setup-msg').className = 'msg err';
+    show('s-setup');
+    return false;
+  }
+}
+
 (function init() {
   bind();
+  const hasHash = /[#&]t=/.test(location.hash || '');
+  if (hasHash) {
+    show('s-setup');
+    consumeHashToken();
+    return;
+  }
   if (loadSettings()) {
     $('who').textContent = `账号 ${state.owner} · 仓库 ${state.repo}`;
     show('s-main');
