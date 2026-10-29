@@ -96,6 +96,10 @@ async function api(path, { method = 'GET', body, attempts = 4, timeout = 120000 
     const msg = (json && json.message) || text.slice(0, 160) || 'HTTP ' + r.status;
     last = new Error(msg + '（HTTP ' + r.status + '）');
     last.status = r.status;
+    if (r.status === 403 && /not accessible/i.test(msg)) {
+      last = new Error('这枚 token 没有写入权限。去 token 设置里把 Contents 改成 Read and write，保存后立即生效（token 不用重新生成）。');
+      last.status = 403;
+    }
     const transient = [401, 408, 429, 500, 502, 503, 504].includes(r.status);
     if (!transient || i === attempts) throw last;
     await sleep(1200 * 2 ** i);
@@ -110,9 +114,18 @@ async function verifyAndSave(token, repo) {
   const me = await api('/user', { timeout: 25000 });
   state.owner = me.login;
   const r = await api(`/repos/${state.owner}/${state.repo}`, { timeout: 25000 });
-  if (!r.permissions || !r.permissions.push) {
-    throw new Error('这枚 token 对 ' + state.repo + ' 没有写权限。检查是否勾了 Contents: Read and write。');
-  }
+  if (r.private) throw new Error('这个仓库是私有的，免费版 Pages 用不了。');
+
+  // 真实的写入探针：只写 1 个字节，不产生任何提交，脏 blob 会被 GitHub 自动回收
+  const probe = await api(`/repos/${state.owner}/${state.repo}/git/blobs`, {
+    method: 'POST',
+    body: { content: btoa('ok'), encoding: 'base64' },
+    timeout: 25000,
+    attempts: 1,
+  }).catch((e) => { throw new Error((e && e.status === 403)
+    ? '这枚 token 能读但不能写。去 token 设置里把 Contents 改成 Read and write，保存后立即生效。'
+    : (e.message || String(e))); });
+  if (!probe || !probe.sha) throw new Error('写入测试失败，检查 token 权限。');
   state.site = `https://${state.owner.toLowerCase()}.github.io/${state.repo}`;
   localStorage.setItem(LS.token, state.token);
   localStorage.setItem(LS.repo, state.repo);
