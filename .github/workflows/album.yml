@@ -1,0 +1,55 @@
+name: album-from-phone
+
+# 手机上传图片到 inbox/<id>/ 后，这里自动生成相册并提交
+on:
+  push:
+    paths:
+      - 'inbox/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write        # 需要提交构建结果回去
+
+concurrency:
+  group: album-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: 拉取仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: 安装依赖（sharp）
+        working-directory: tools
+        run: npm ci --no-audit --no-fund
+
+      - name: 生成相册
+        env:
+          GH_OWNER: ${{ github.repository_owner }}
+          GH_REPO: ${{ github.event.repository.name }}
+          SITE_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: node tools/build.mjs
+
+      - name: 提交结果
+        run: |
+          git config user.name "album-bot"
+          git config user.email "album-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "没有需要提交的变化"
+          else
+            git commit -m "album: 手机上传构建 [skip ci]"
+            git push
+          fi
