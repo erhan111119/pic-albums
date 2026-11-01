@@ -395,8 +395,9 @@ function makeZip(files, when) {
       cell.className = 'cell';
       var img = document.createElement('img');
       img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.d || it.n || '';
-      img.src = res(it.th || it.f);
+      // 先挂 onerror 再设 src：CDN 被墙时请求会瞬间失败，晚一步挂就收不到事件
       img.onerror = function () { onImgFail(this, it.th || it.f); };
+      img.src = res(it.th || it.f);
       cell.appendChild(img);
       if (it.d) {
         var tag = document.createElement('span');
@@ -435,7 +436,11 @@ function makeZip(files, when) {
     // 预载相邻
     [idx - 1, idx + 1].forEach(function (k) {
       var n = items[(k + items.length) % items.length];
-      if (n && n !== it) { var pre = new Image(); pre.src = res(n.f); pre.onerror = function () { onImgFail(this, n.f); }; }
+      if (n && n !== it) {
+        var pre = new Image();
+        pre.onerror = (function (rel) { return function () { onImgFail(this, rel); }; })(n.f);
+        pre.src = res(n.f);
+      }
     });
   }
   function open(i) {
