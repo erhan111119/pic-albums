@@ -355,10 +355,13 @@ function makeZip(files, when) {
     }
     return '';                        // 全挂 → 回同站
   }
-  /* 把相对路径变成可用的绝对地址（可能带回退） */
+  /* 把相对路径变成可用的绝对地址（可能带回退）
+     分流依据来自实测：缩略图 30KB 这种小文件，同站 Pages 反而略快（延迟主导）；
+     预览图 300KB+ 和原图几 MB，jsDelivr 快 10 倍以上（带宽主导）。 */
   function res(rel) {
     if (!rel) return rel;
     if (rel.slice(0, 5) === 'data:' || /^https?:/i.test(rel)) return rel;
+    if (rel.indexOf('th/') === 0) return rel;        // 缩略图走同站
     var pre = currentPrefix();
     return pre ? pre + rel : rel;
   }
@@ -368,14 +371,15 @@ function makeZip(files, when) {
       if (String(url).indexOf(CDN_PREFIXES[i]) === 0) cdnBad[CDN_PREFIXES[i]] = 1;
     }
   }
-  /* img 加载失败时的统一回退：CDN → 下一条线路 → 同站 */
+  /* img 加载失败时的统一回退：CDN → 下一条线路 → 同站，最多试完所有线路就停 */
   function onImgFail(el, rel) {
-    if (/^https?:/i.test(el.src)) {
+    var next = res(rel);
+    if (/^https?:/i.test(next) && next !== el.src) {
       cdnFail(el.src);
-      el.src = res(rel);
-      if (/^https?:/i.test(el.src)) return;   // 还有别的线路要试
+      el.src = next;
+      return;
     }
-    el.onerror = null;                        // 已经退到同站，不再循环
+    el.onerror = null;      // 已经退到同站（或没有别的线路），不再重试，避免死循环
   }
 
   /* ---------------- 渲染相册 ---------------- */
