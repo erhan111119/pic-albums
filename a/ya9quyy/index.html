@@ -339,7 +339,8 @@ function makeZip(files, when) {
     if (!m) return [];
     var p = location.pathname.split('/').filter(Boolean);   // 仓库 / a / 批次
     if (p.length < 3 || p[1] !== 'a') return [];
-    var path = 'gh/' + m[1] + '/' + p[0] + '@main/' + p.slice(0, 3).join('/') + '/';
+    // jsDelivr 的路径格式：gh/用户名/仓库@分支/目录...   （仓库名只能出现一次）
+    var path = 'gh/' + m[1] + '/' + p[0] + '@main/' + p.slice(1, 3).join('/') + '/';
     return [
       'https://gcore.jsdelivr.net/' + path,
       'https://fastly.jsdelivr.net/' + path,
