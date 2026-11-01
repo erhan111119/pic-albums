@@ -298,8 +298,8 @@ function makeZip(files, when) {
   /* 取图：先试 CDN，失败自动换线，最后退同站 */
   async function toBytes(u) {
     if (u.slice(0, 5) === 'data:') return dataUrlBytes(u);
-    var tries = [res(u)];
-    if (CDN_PREFIXES.length && !cdnDead && tries[0] !== u) tries.push(u);
+    var first = res(u);
+    var tries = first === u ? [u] : [first, u];
     var lastErr = null;
     for (var i = 0; i < tries.length; i++) {
       try {
@@ -308,7 +308,7 @@ function makeZip(files, when) {
         return new Uint8Array(await r.arrayBuffer());
       } catch (e) {
         lastErr = e;
-        if (i === 0 && tries.length > 1) cdnFail();     // CDN 这条不行，下次别用了
+        if (i === 0 && tries.length > 1) cdnFail(tries[0]);   // 这条线路不行，后面都别用了
       }
     }
     throw new Error('取图失败 ' + ((lastErr && lastErr.message) || '') + '：' + u);
@@ -347,21 +347,35 @@ function makeZip(files, when) {
       'https://testingcf.jsdelivr.net/' + path
     ];
   })();
-  var cdnIdx = 0;          // 当前用第几条线路
-  var cdnDead = false;     // 全部线路都失败后彻底关掉，避免一直重试
+  var cdnBad = Object.create(null);   // 已经确定连不上的线路，记住别再试
 
+  function currentPrefix() {
+    for (var i = 0; i < CDN_PREFIXES.length; i++) {
+      if (!cdnBad[CDN_PREFIXES[i]]) return CDN_PREFIXES[i];
+    }
+    return '';                        // 全挂 → 回同站
+  }
   /* 把相对路径变成可用的绝对地址（可能带回退） */
   function res(rel) {
     if (!rel) return rel;
     if (rel.slice(0, 5) === 'data:' || /^https?:/i.test(rel)) return rel;
-    if (cdnDead || !CDN_PREFIXES.length) return rel;
-    return CDN_PREFIXES[cdnIdx] + rel;
+    var pre = currentPrefix();
+    return pre ? pre + rel : rel;
   }
-  /* 某条线路失败了：换下一条，全挂就回同站 */
-  function cdnFail() {
-    if (cdnDead) return;
-    cdnIdx++;
-    if (cdnIdx >= CDN_PREFIXES.length) { cdnDead = true; }
+  /* 某条线路失败了：记下来，以后所有图都不再走它 */
+  function cdnFail(url) {
+    for (var i = 0; i < CDN_PREFIXES.length; i++) {
+      if (String(url).indexOf(CDN_PREFIXES[i]) === 0) cdnBad[CDN_PREFIXES[i]] = 1;
+    }
+  }
+  /* img 加载失败时的统一回退：CDN → 下一条线路 → 同站 */
+  function onImgFail(el, rel) {
+    if (/^https?:/i.test(el.src)) {
+      cdnFail(el.src);
+      el.src = res(rel);
+      if (/^https?:/i.test(el.src)) return;   // 还有别的线路要试
+    }
+    el.onerror = null;                        // 已经退到同站，不再循环
   }
 
   /* ---------------- 渲染相册 ---------------- */
@@ -382,16 +396,7 @@ function makeZip(files, when) {
       var img = document.createElement('img');
       img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.d || it.n || '';
       img.src = res(it.th || it.f);
-      img.onerror = function () {
-        if (/^https?:/i.test(this.src) && !cdnDead) {
-          cdnFail();
-          var rel = it.th || it.f;
-          this.src = res(rel);
-          if (!/^https?:/i.test(this.src)) this.onerror = null;   // 已经退到同站
-        } else {
-          this.onerror = null;
-        }
-      };
+      img.onerror = function () { onImgFail(this, it.th || it.f); };
       cell.appendChild(img);
       if (it.d) {
         var tag = document.createElement('span');
@@ -423,21 +428,14 @@ function makeZip(files, when) {
     var it = items[idx];
     resetZoom();
     big.classList.remove('zoomed');
-    big.onerror = function () {
-      if (/^https?:/i.test(this.src) && !cdnDead) {
-        cdnFail();
-        this.src = res(it.f);
-      } else {
-        this.onerror = null;
-      }
-    };
+    big.onerror = function () { onImgFail(this, it.f); };
     big.src = res(it.f);
     counter.textContent = (idx + 1) + ' / ' + items.length;
     lbName.textContent = it.d || it.n || '';
     // 预载相邻
     [idx - 1, idx + 1].forEach(function (k) {
       var n = items[(k + items.length) % items.length];
-      if (n && n !== it) { var pre = new Image(); pre.src = res(n.f); }
+      if (n && n !== it) { var pre = new Image(); pre.src = res(n.f); pre.onerror = function () { onImgFail(this, n.f); }; }
     });
   }
   function open(i) {
